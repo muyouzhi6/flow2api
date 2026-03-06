@@ -46,20 +46,23 @@ def _write_config(cfg: dict) -> None:
     Path(CFG_PATH).write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
-@app.get('/', response_class=HTMLResponse)
-def index(request: Request):
+def _get_context():
+    """Build common template context."""
     cfg = load_config(CFG_PATH)
     state = read_json(cfg['state_file']) or {}
     status = _run_cmd('status')
-
-    # Format last update time for display
     last_update_display = '—'
     if state.get('time'):
         try:
             last_update_display = datetime.fromtimestamp(state['time']).strftime('%Y-%m-%d %H:%M:%S')
         except Exception:
             pass
+    return cfg, state, status, last_update_display
 
+
+@app.get('/', response_class=HTMLResponse)
+def index(request: Request):
+    cfg, state, status, last_update_display = _get_context()
     return templates.TemplateResponse('index.html', {
         'request': request,
         'cfg': cfg,
@@ -69,23 +72,36 @@ def index(request: Request):
     })
 
 
+@app.get('/login', response_class=HTMLResponse)
+def login_page(request: Request):
+    """Login page with embedded noVNC for Google Labs login."""
+    cfg, state, status, _ = _get_context()
+    # Determine noVNC URL - default to port 6080 on same host
+    novnc_url = cfg.get('novnc_url', 'http://localhost:6080/vnc.html?autoconnect=true&resize=scale&quality=6')
+    return templates.TemplateResponse('login.html', {
+        'request': request,
+        'cfg': cfg,
+        'status': status,
+        'novnc_url': novnc_url,
+    })
+
+
 @app.get('/api/status')
 def api_status():
     return _run_cmd('status')
 
 
-@app.post('/action/login')
-def action_login():
+@app.post('/action/launch-browser')
+def action_launch_browser():
+    """Start Chrome on the VNC desktop and redirect to login page."""
     _run_cmd('login')
-    return RedirectResponse('/', status_code=303)
+    return RedirectResponse('/login', status_code=303)
 
 
 @app.post('/action/run-once')
 def action_run_once():
     result = _run_cmd('run-once')
-    # Store result info in redirect for toast display (use query param)
-    ok = result.get('success', False)
-    flag = '1' if ok else '0'
+    flag = '1' if result.get('success', False) else '0'
     return RedirectResponse(f'/?refreshed={flag}', status_code=303)
 
 
@@ -97,6 +113,7 @@ def action_save(
     remote_debugging_port: int = Form(...),
     display: str = Form(...),
     refresh_interval_minutes: int = Form(...),
+    novnc_url: str = Form(''),
 ):
     cfg = load_config(CFG_PATH)
     cfg.update({
@@ -106,6 +123,7 @@ def action_save(
         'remote_debugging_port': int(remote_debugging_port),
         'display': display,
         'refresh_interval_minutes': int(refresh_interval_minutes),
+        'novnc_url': novnc_url or 'http://localhost:6080/vnc.html?autoconnect=true&resize=scale&quality=6',
     })
     _write_config(cfg)
     return RedirectResponse('/?saved=1', status_code=303)

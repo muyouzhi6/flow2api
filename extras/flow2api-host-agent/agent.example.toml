@@ -10,3 +10,4 @@ state_file = "/var/lib/flow2api-host-agent/state.json"
 log_file = "/var/log/flow2api-host-agent.log"
 listen_host = "127.0.0.1"
 listen_port = 38110
+novnc_url = "http://localhost:6080/vnc.html?autoconnect=true&resize=scale&quality=6"
