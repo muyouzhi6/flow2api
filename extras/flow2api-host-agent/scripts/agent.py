@@ -42,18 +42,22 @@ def main():
         return
 
     if args.cmd == 'daemon':
+        interval_sec = max(300, int(cfg.get('refresh_interval_minutes', 30)) * 60)
+        print(json.dumps({'daemon_started': True, 'interval_sec': interval_sec, 'interval_min': interval_sec // 60}), flush=True)
         while True:
             try:
                 if not chrome_running(cfg['remote_debugging_port']):
+                    print(json.dumps({'event': 'chrome_not_running', 'action': 'starting_chrome'}), flush=True)
                     start_chrome(cfg)
                     time.sleep(5)
                 result = run_once(cfg)
+                result['next_run_in_sec'] = interval_sec
                 print(json.dumps(result, ensure_ascii=False), flush=True)
             except Exception as e:
                 err = {'success': False, 'error': repr(e), 'time': int(time.time())}
                 Path(cfg['state_file']).write_text(json.dumps(err, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
                 print(json.dumps(err, ensure_ascii=False), flush=True)
-            time.sleep(max(300, int(cfg['refresh_interval_minutes']) * 60))
+            time.sleep(interval_sec)
 
 
 if __name__ == '__main__':
