@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flow2API Host Agent</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,sans-serif;background:#0b1020;color:#e5e7eb;padding:24px 16px;line-height:1.5}
+    .wrap{max-width:900px;margin:0 auto}
+    h1{font-size:1.4rem;font-weight:700;margin-bottom:20px;color:#f1f5f9}
+    h2{font-size:1rem;font-weight:600;margin-bottom:14px;color:#cbd5e1}
+    .card{background:#121933;border:1px solid #1e2a45;border-radius:14px;padding:20px;margin-bottom:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+    .stat{flex:1;min-width:140px;background:#0f172a;border:1px solid #1e2a45;border-radius:10px;padding:12px 14px}
+    .stat-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+    .stat-value{font-size:1.1rem;font-weight:700;margin-top:4px}
+    .ok{color:#34d399}.warn{color:#f59e0b}.err{color:#f87171}
+    label{display:block;font-size:13px;color:#94a3b8;margin:12px 0 5px}
+    input,select{width:100%;padding:9px 12px;border-radius:8px;border:1px solid #1e2a45;background:#0f172a;color:#e5e7eb;font-size:14px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .btn{display:inline-flex;align-items:center;padding:9px 18px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;text-decoration:none;gap:6px}
+    .btn-primary{background:#3b82f6;color:#fff}.btn-primary:hover{background:#2563eb}
+    .btn-secondary{background:#1e293b;color:#cbd5e1;border:1px solid #334155}.btn-secondary:hover{background:#273348}
+    .btn-warn{background:#d97706;color:#fff}.btn-warn:hover{background:#b45309}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#0f172a;padding:12px;border-radius:8px;font-size:12px;color:#94a3b8}
+    .toast{position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:500;z-index:99;animation:slideup .3s ease}
+    .toast-ok{background:#059669;color:#fff}.toast-err{background:#dc2626;color:#fff}
+    @keyframes slideup{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+    .badge-ok{background:#064e3b;color:#34d399}.badge-err{background:#450a0a;color:#f87171}
+    code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:12px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🤖 Flow2API Host Agent</h1>
+
+  <!-- Status Row -->
+  <div class="card">
+    <h2>状态</h2>
+    <div class="row">
+      <div class="stat">
+        <div class="stat-label">Chrome</div>
+        <div class="stat-value {% if status.chrome_running %}ok{% else %}err{% endif %}">
+          {{ '运行中' if status.chrome_running else '未运行' }}
+        </div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">调试端口</div>
+        <div class="stat-value">{{ status.debug_port or cfg.remote_debugging_port }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">最近刷新</div>
+        <div class="stat-value" style="font-size:.9rem">{{ last_update_display }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">上次结果</div>
+        <div class="stat-value">
+          {% if state.success is defined %}
+            <span class="badge {% if state.success %}badge-ok{% else %}badge-err{% endif %}">
+              {{ '成功' if state.success else '失败' }}
+            </span>
+          {% else %}
+            <span class="badge" style="background:#1e2a45;color:#64748b">暂无</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if state.update_body %}
+    <pre>{{ state.update_body }}</pre>
+    {% endif %}
+
+    <div class="actions">
+      <form method="post" action="/action/run-once">
+        <button class="btn btn-primary" type="submit">⚡ 立即刷新</button>
+      </form>
+      <form method="post" action="/action/login">
+        <button class="btn btn-secondary" type="submit">🔑 打开登录浏览器</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card">
+    <h2>配置</h2>
+    <form method="post" action="/action/save">
+      <label>Flow2API 地址</label>
+      <input name="flow2api_url" value="{{ cfg.flow2api_url }}">
+
+      <label>Connection Token</label>
+      <input name="connection_token" value="{{ cfg.connection_token }}">
+
+      <div class="grid2">
+        <div>
+          <label>Chrome Profile 目录</label>
+          <input name="chrome_profile_dir" value="{{ cfg.chrome_profile_dir }}">
+        </div>
+        <div>
+          <label>Remote Debug Port</label>
+          <input name="remote_debugging_port" type="number" value="{{ cfg.remote_debugging_port }}">
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>Display</label>
+          <input name="display" value="{{ cfg.display }}">
+        </div>
+        <div>
+          <label>刷新频率（分钟）</label>
+          <input name="refresh_interval_minutes" type="number" min="5" max="720" value="{{ cfg.refresh_interval_minutes }}">
+          <small style="color:#64748b;font-size:11px">建议 5–720 分钟，默认 30</small>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="submit">💾 保存配置</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Info -->
+  <div class="card">
+    <h2>部署说明</h2>
+    <p style="font-size:13px;color:#64748b">
+      首次使用：点击「打开登录浏览器」，在 VNC/noVNC 窗口中完成 Google Labs 登录。<br>
+      之后点击「立即刷新」或等待 daemon 自动刷新（每 <strong>{{ cfg.refresh_interval_minutes }}</strong> 分钟一次）。
+    </p>
+    <p style="font-size:13px;color:#64748b;margin-top:8px">
+      systemd 常驻：参考 <code>systemd/</code> 目录下的模板文件。
+    </p>
+  </div>
+</div>
+
+{% set refreshed = request.query_params.get('refreshed') %}
+{% set saved = request.query_params.get('saved') %}
+{% if refreshed == '1' %}
+<div class="toast toast-ok" id="toast">✅ Token 刷新成功</div>
+{% elif refreshed == '0' %}
+<div class="toast toast-err" id="toast">❌ 刷新失败，请检查登录状态</div>
+{% elif saved == '1' %}
+<div class="toast toast-ok" id="toast">💾 配置已保存</div>
+{% endif %}
+
+<script>
+const t = document.getElementById('toast');
+if (t) setTimeout(() => t.remove(), 3000);
+</script>
+</body>
+</html>
